@@ -650,56 +650,51 @@ int stubgen_code(image_export_directory const* exports, u32 flags)
     /* trampolines.asm */
     fprintf(
         asmfd,
-        "EXTERN initdone:DWORD"         "\n"
+        "extern _initdone"              "\n"
                                         "\n"
-        "asm_wait_init MACRO"           "\n"
-        "    LOCAL loop"                "\n"
-                                        "\n"
+        "%%macro asm_wait_init 0"       "\n"
         "    push REGA"                 "\n"
         "    push REGD"                 "\n"
                                         "\n"
-        "loop:"                         "\n"
-        "    xor edx,edx"               "\n"
-        "    xor eax,eax"               "\n"
-        "    lock cmpxchg initdone,edx" "\n"
-        "    jnz short initialized"     "\n"
+        ".loop:"                        "\n"
+        "    xor REGD, REGD"            "\n"
+        "    xor REGA, REGA"            "\n"
+        "    lock cmpxchg [_initdone], REGD" "\n"
+        "    jnz short .initialized"    "\n"
         "    pause"                     "\n"
-        "    jmp short loop"            "\n"
+        "    jmp short .loop"           "\n"
                                         "\n"
-        "initialized:"                  "\n"
+        ".initialized:"                 "\n"
         "    pop REGD"                  "\n"
         "    pop REGA"                  "\n"
-        "ENDM"                          "\n"
+        "%%endmacro"                    "\n"
                                         "\n"
-        "_TEXT SEGMENT"                 "\n"
+        "section .text"                 "\n"
                                         "\n"
     );
 
     /* trampolines32.asm */
     fprintf(
         asmfd32,
-        ".486"                          "\n"
-        ".MODEL flat, stdcall"          "\n"
+        "%%define PTR_SIZE 4"           "\n"
+        "%%define REGA     eax"         "\n"
+        "%%define REGD     edx"         "\n"
                                         "\n"
-        "PTR_SIZE TEXTEQU %%4"          "\n"
-        "REGA     TEXTEQU <eax>"        "\n"
-        "REGD     TEXTEQU <edx>"        "\n"
+        "extern _original_funcs"        "\n"
                                         "\n"
-        "EXTERN original_funcs:DWORD"   "\n"
-                                        "\n"
-        "INCLUDE trampolines.asm"       "\n"
+        "%%include \"trampolines.asm\"" "\n"
     );
 
     /* trampolines64.asm */
     fprintf(
         asmfd64,
-        "PTR_SIZE TEXTEQU %%8"          "\n"
-        "REGA     TEXTEQU <rax>"        "\n"
-        "REGD     TEXTEQU <rdx>"        "\n"
+        "%%define PTR_SIZE 8"           "\n"
+        "%%define REGA     rax"         "\n"
+        "%%define REGD     rdx"         "\n"
                                         "\n"
-        "EXTERN original_funcs:QWORD"   "\n"
+        "extern _original_funcs"        "\n"
                                         "\n"
-        "INCLUDE trampolines.asm"       "\n"
+        "%%include trampolines.asm"     "\n"
     );
 
     /* --------------------------------------------------------- */
@@ -785,19 +780,19 @@ int stubgen_code(image_export_directory const* exports, u32 flags)
         /* ----------------------------------------------------- */
 
         /* trampolines.asm */
+        fprintf(asmfd, "global _");
+        PRINT_FUNC(asmfd, ordinal, name)
+        fprintf(asmfd, "\n_");
         PRINT_FUNC(asmfd, ordinal, name)
 
         fprintf(
             asmfd,
-            " PROC"                                 "\n"
+            ":"                                     "\n"
             "asm_wait_init"                         "\n"
-            "jmp [original_funcs + %u * PTR_SIZE]"  "\n",
+            "jmp [_original_funcs + %u * PTR_SIZE]" "\n"
+            "\n",
             i
         );
-
-        PRINT_FUNC(asmfd, ordinal, name)
-
-        fprintf(asmfd, " ENDP\n\n");
     }
 
     fprintf(
@@ -865,11 +860,6 @@ int stubgen_code(image_export_directory const* exports, u32 flags)
     /* --------------------------------------------------------- */
 
     /* trampolines.asm */
-    fprintf(
-        asmfd,
-        "_TEXT ENDS"    "\n"
-        "END"           "\n"
-    );
 
     fclose(asmfd);
     fclose(asmfd32);
